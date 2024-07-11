@@ -1,0 +1,37 @@
+[tool.poetry]
+name = "ai_powered_qa"
+version = "0.1.0"
+description = "A demonstration of how to use GPT to generate Playwright tests"
+authors = ["Your Name <you@example.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+playwright = "^1.39.0"
+streamlit = "^1.28.1"
+python-dotenv = "^1.0.0"
+bs4 = "^0.0.1"
+openai = "^1.2.3"
+tiktoken = "0.7.0"
+black = "^23.11.0"
+docstring-parser = "^0.15"
+streamlit-image-coordinates = "^0.1.6"
+gradio = "^4.24.0"
+langsmith = "0.1.40"
+anthropic = "0.24.0"
+playwright-stealth = "^1.0.6"
+setuptools = "70.3.0"
+
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4.3"
+
+[tool.pytest.ini_options]
+filterwarnings = [
+    "ignore:The `__fields__` attribute is deprecated, use `model_fields` instead.*",
+    "ignore:The `__fields_set__` attribute is deprecated, use `model_fields_set` instead.*"
+]
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

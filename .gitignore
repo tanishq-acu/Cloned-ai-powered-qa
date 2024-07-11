@@ -1,0 +1,27 @@
+.env
+
+# screenshot folder
+screenshot
+
+# python environment
+__pycache__
+.venv
+.pytest_cache
+
+# ignore playwright stuff
+playwright.config.ts
+package*
+node_modules/
+/test-results/
+/playwright-report/
+/playwright/.cache/
+
+# IDE specific folders
+.idea/
+.vim/
+
+# Agent store
+agents/
+
+# Data folder
+data/
