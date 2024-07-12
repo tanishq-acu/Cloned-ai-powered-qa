@@ -6,6 +6,7 @@ import playwright.async_api
 from playwright.async_api import Error
 
 from ai_powered_qa.components.plugin import tool
+from ai_powered_qa.custom_plugins.playwright_plugin.base import LinkedPage
 
 from . import clean_html
 from .base import PageNotLoadedException, PlaywrightPlugin
@@ -144,13 +145,20 @@ class PlaywrightPluginOnlyVisible(PlaywrightPlugin):
         return html_clean
 
     async def _ensure_page(self) -> playwright.async_api.Page:
-        if not self._page:
+        if not self._pages:
             self._playwright = await playwright.async_api.async_playwright().start()
             self._browser = await self._playwright.firefox.launch(headless=False)
             browser_context = await self._browser.new_context(ignore_https_errors=True)
             await browser_context.add_init_script(JS_FUNCTIONS)
-            self._page = await browser_context.new_page()
-        return self._page
+            page = await browser_context.new_page()
+            self._pages = LinkedPage(page)
+        if (self._pages._page.is_closed()):
+            while(self._pages._page.is_closed() and self._pages._page is not None):
+                self._pages.set_prev()
+            if(self._pages._page is None):
+                page = await browser_context.new_page()
+                self._pages._page = page
+        return self._pages._page
 
     # @tool
     # def scroll(self, selector: str, direction: str):
@@ -215,13 +223,13 @@ class PlaywrightPluginOnlyVisible(PlaywrightPlugin):
         return self._run_async(self._finish())
 
     async def _finish(self):
-        if self._page:
-            await self._page.close()
+        if self._pages:
+            await self._pages.close()
         if self._browser:
             await self._browser.close()
         if self._playwright:
             await self._playwright.stop()
-        self._page = None
+        self._pages = None
         return "Session finished."
 
     @staticmethod

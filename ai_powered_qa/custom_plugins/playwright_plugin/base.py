@@ -128,7 +128,34 @@ def get_openai_client():
 def get_anthropic_client():
     return Anthropic()
 
+class LinkedPage():## Heres the plan: You get the page of any action that opens a popup(get the popup as a page). Then add it here. Only use self._page. If the self._page is ever closed, then set it to prev. Also: need to add the ability to close the current page.
+    def __init__(self, page: playwright.async_api.Page):
+        self._page = page
+        self._prev = None
+    def add_page(self, page: playwright.async_api.Page):
+        if(self._page != None):
+            new = LinkedPage(self._page)
+            self._page = page
+            self._prev = new
+        else:
+            self.page = page
+            self._prev = None
+    def set_page(self,page: playwright.async_api.Page):
+        self._page = page
+    def close(self):
+        if(self._page is not None):
+            self._page.close()
+        temp = self._prev
+        while(temp is not None):
+            temp._page.close()
+            temp = temp._prev
+    def set_prev(self):
+        self._page = self._prev
+        if(self._prev is not None):
+            self._prev = self._prev._prev
 
+
+        
 class PlaywrightPlugin(Plugin):
     name: str = "PlaywrightPlugin"
     client: Any = Field(default_factory=get_openai_client, exclude=True)
@@ -136,14 +163,14 @@ class PlaywrightPlugin(Plugin):
 
     _playwright: playwright.async_api.Playwright | None
     _browser: playwright.async_api.Browser | None
-    _page: playwright.async_api.Page | None
+    _pages: LinkedPage | None
     _buffer: bytes | None
 
     def __init__(self, **data):
         super().__init__(**data)
         self._playwright = None
         self._browser = None
-        self._page = None
+        self._pages = None
         self._buffer = None
         self._loop = asyncio.new_event_loop()
 
@@ -195,6 +222,9 @@ class PlaywrightPlugin(Plugin):
         page = await self._ensure_page()
         selector = await page.evaluate(GENERATE_SELECTOR_SCRIPT, [x, y])
         return selector
+    async def _handle_popup(self,popup):
+        await popup.wait_for_load_state()
+        await self._pages.add_page(popup)
 
     def get_elements_count_for_selector(self, selector: str):
         selector = self._enhance_selector(selector)
@@ -216,6 +246,7 @@ class PlaywrightPlugin(Plugin):
 
     async def _navigate(self, url: str):
         page = await self._ensure_page()
+        page.on("popup", self._handle_popup)
         try:
             response = await page.goto(url, wait_until="domcontentloaded")
         except Exception as e:
@@ -237,6 +268,7 @@ class PlaywrightPlugin(Plugin):
     async def _click(self, selector: str) -> str:
         timeout = config.PLAYWRIGHT_TIMEOUT
         page = await self._ensure_page()
+        page.on("popup", self._handle_popup)
         try:
             selector = self._enhance_selector(selector)
 
@@ -261,7 +293,6 @@ class PlaywrightPlugin(Plugin):
             return f"Unable to click on element. {e}"
 
         return f"Element clicked successfully."
-
     @tool
     def fill_text(self, selector: str, text: str):
         """
@@ -275,6 +306,7 @@ class PlaywrightPlugin(Plugin):
 
     async def _fill_text(self, selector: str, text: str):
         page = await self._ensure_page()
+        page.on("popup", self._handle_popup)
         try:
             await page.locator(self._enhance_selector(selector)).fill(
                 text, timeout=config.PLAYWRIGHT_TIMEOUT
@@ -343,8 +375,8 @@ class PlaywrightPlugin(Plugin):
         self._run_async(self._close())
 
     async def _close(self):
-        if self._page:
-            await self._page.close()
+        if self._pages:
+            await self._pages.close()
         if self._browser:
             await self._browser.close()
         if self._playwright:
@@ -354,7 +386,7 @@ class PlaywrightPlugin(Plugin):
         self.close()
         self._playwright = None
         self._browser = None
-        self._page = None
+        self._pages = None
         super().reset_history(history)
 
     async def _get_page_content(self):
@@ -435,13 +467,21 @@ class PlaywrightPlugin(Plugin):
         return completion.choices[0].message.content
 
     async def _ensure_page(self) -> playwright.async_api.Page:
-        if not self._page:
+        if not self._pages:
             self._playwright = await playwright.async_api.async_playwright().start()
             self._browser = await self._playwright.firefox.launch(headless=True)
             browser_context = await self._browser.new_context(ignore_https_errors=True)
-            self._page = await browser_context.new_page()
-            self.page = await stealth_async(self._page)
-        return self._page
+            page = await browser_context.new_page()
+            self._pages = LinkedPage(page)
+            await stealth_async(self._pages._page)
+        if (self._pages._page.is_closed()):
+            while(self._pages._page.is_closed() and self._pages._page is not None):
+                self._pages.set_prev()
+            if(self._pages._page is None):
+                page = await browser_context.new_page()
+                self._pages._page = page
+                await stealth_async(self._pages._page)
+        return self._pages._page
 
     async def _screenshot(self):
         page = await self._ensure_page()
