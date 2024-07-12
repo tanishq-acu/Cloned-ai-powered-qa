@@ -7,9 +7,11 @@ from playwright.async_api import Error
 
 from ai_powered_qa.components.plugin import tool
 from ai_powered_qa.custom_plugins.playwright_plugin.base import LinkedPage
-
+from ai_powered_qa import config
 from . import clean_html
 from .base import PageNotLoadedException, PlaywrightPlugin
+from dotenv import load_dotenv
+import os
 
 JS_FUNCTIONS = cleandoc(
     """
@@ -143,20 +145,21 @@ class PlaywrightPluginOnlyVisible(PlaywrightPlugin):
         html = await page.content()
         html_clean = self._clean_html(html)
         return html_clean
-
+    def _enhance_selector(self, selector):
+        return selector
     async def _ensure_page(self) -> playwright.async_api.Page:
         if not self._pages:
             self._playwright = await playwright.async_api.async_playwright().start()
             self._browser = await self._playwright.firefox.launch(headless=False)
-            browser_context = await self._browser.new_context(ignore_https_errors=True)
-            await browser_context.add_init_script(JS_FUNCTIONS)
-            page = await browser_context.new_page()
+            self._browser_context = await self._browser.new_context(ignore_https_errors=True)
+            await self._browser_context.add_init_script(JS_FUNCTIONS)
+            page = await self._browser_context.new_page()
             self._pages = LinkedPage(page)
         if (self._pages._page.is_closed()):
             while(self._pages._page.is_closed() and self._pages._page is not None):
                 self._pages.set_prev()
             if(self._pages._page is None):
-                page = await browser_context.new_page()
+                page = await self._browser_context.new_page()
                 self._pages._page = page
         return self._pages._page
 
@@ -212,6 +215,45 @@ class PlaywrightPluginOnlyVisible(PlaywrightPlugin):
     #         return f"Unable to scroll. {e}"
     #     return f"Scrolled successfully."
 
+    # @tool 
+    # def enter_email(self, selector: str):
+    #     """
+    #     Insert a working google email into an input element. 
+    #     :param str selector: The selector for the element you want to enter the email into.
+    #     """
+    #     return self._run_async(self._enter_email(selector))
+    # async def _enter_email(self, selector: str):
+    #     load_dotenv()
+    #     page = await self._ensure_page()
+    #     page.on("popup", self._handle_popup)
+    #     try:
+    #         await page.locator(selector).fill(
+    #             os.getenv("email"), timeout=config.PLAYWRIGHT_TIMEOUT
+    #         )
+
+    #     except Exception as e:
+    #         print(e)
+    #         return f"Unable to insert email. {e}"
+    #     return f"Email was successfully inserted."
+    # @tool
+    # def enter_password(self, selector: str): 
+    #     """
+    #     Insert a password for the working google email generated prior. 
+    #     :param str selector: The selector for the element you want to enter the password into.
+    #     """
+    #     return self._run_async(self._enter_password(selector))
+    # async def _enter_password(self, selector: str):
+    #     load_dotenv()
+    #     page = await self._ensure_page()
+    #     page.on("popup", self._handle_popup)
+    #     try:
+    #         await page.locator(selector).fill(
+    #             os.getenv("password"), timeout = config.PLAYWRIGHT_TIMEOUT
+    #         )
+    #     except Exception as e:
+    #         print(e)
+    #         return f"Unable to insert password. {e}"
+    #     return f"Password was successfully inserted"
     @tool
     def finish(self, success: bool, comment: str):
         """
@@ -225,6 +267,9 @@ class PlaywrightPluginOnlyVisible(PlaywrightPlugin):
     async def _finish(self):
         if self._pages:
             await self._pages.close()
+            await self._pages._page.close()
+        if self._browser_context:
+            await self._browser_context.close()
         if self._browser:
             await self._browser.close()
         if self._playwright:

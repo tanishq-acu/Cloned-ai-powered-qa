@@ -62,7 +62,7 @@ if not st.button("Run test scenario"):
 
 
 interaction = agent.generate_interaction(
-    f"Please go to {website_url} and execute this test scenario:\n{test_scenario}",
+    f"Please go to {website_url} and execute this test scenario:\n{test_scenario}.",
 )
 
 with st.chat_message("User"):
