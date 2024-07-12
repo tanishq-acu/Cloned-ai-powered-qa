@@ -14,8 +14,6 @@ async def run(playwright: Playwright) -> None:
 
     # Fill input[name="ctl00\$ContentPlaceHolder1\$txtCmteID"]
     print(type(context))
-    # await context.close()
-    # await browser.close()
 
 async def main():
     async with async_playwright() as playwright:

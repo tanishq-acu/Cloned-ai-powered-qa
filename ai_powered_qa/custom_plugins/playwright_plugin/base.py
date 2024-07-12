@@ -128,7 +128,7 @@ def get_openai_client():
 def get_anthropic_client():
     return Anthropic()
 
-class LinkedPage():## Heres the plan: You get the page of any action that opens a popup(get the popup as a page). Then add it here. Only use self._page. If the self._page is ever closed, then set it to prev. Also: need to add the ability to close the current page.
+class LinkedPage():## You get the page of any action that opens a popup(get the popup as a page). Then add it here. Only use self._page. If the self._page is ever closed, then set it to prev.
     def __init__(self, page: playwright.async_api.Page):
         self._page = page
         self._prev = None

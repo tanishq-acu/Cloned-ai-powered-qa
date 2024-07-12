@@ -215,45 +215,6 @@ class PlaywrightPluginOnlyVisible(PlaywrightPlugin):
     #         return f"Unable to scroll. {e}"
     #     return f"Scrolled successfully."
 
-    # @tool 
-    # def enter_email(self, selector: str):
-    #     """
-    #     Insert a working google email into an input element. 
-    #     :param str selector: The selector for the element you want to enter the email into.
-    #     """
-    #     return self._run_async(self._enter_email(selector))
-    # async def _enter_email(self, selector: str):
-    #     load_dotenv()
-    #     page = await self._ensure_page()
-    #     page.on("popup", self._handle_popup)
-    #     try:
-    #         await page.locator(selector).fill(
-    #             os.getenv("email"), timeout=config.PLAYWRIGHT_TIMEOUT
-    #         )
-
-    #     except Exception as e:
-    #         print(e)
-    #         return f"Unable to insert email. {e}"
-    #     return f"Email was successfully inserted."
-    # @tool
-    # def enter_password(self, selector: str): 
-    #     """
-    #     Insert a password for the working google email generated prior. 
-    #     :param str selector: The selector for the element you want to enter the password into.
-    #     """
-    #     return self._run_async(self._enter_password(selector))
-    # async def _enter_password(self, selector: str):
-    #     load_dotenv()
-    #     page = await self._ensure_page()
-    #     page.on("popup", self._handle_popup)
-    #     try:
-    #         await page.locator(selector).fill(
-    #             os.getenv("password"), timeout = config.PLAYWRIGHT_TIMEOUT
-    #         )
-    #     except Exception as e:
-    #         print(e)
-    #         return f"Unable to insert password. {e}"
-    #     return f"Password was successfully inserted"
     @tool
     def finish(self, success: bool, comment: str):
         """
