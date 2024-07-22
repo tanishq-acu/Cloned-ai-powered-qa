@@ -142,12 +142,12 @@ class LinkedPage():## You get the page of any action that opens a popup(get the 
             self._prev = None
     def set_page(self,page: playwright.async_api.Page):
         self._page = page
-    def close(self):
+    async def close(self):
         if(self._page is not None):
-            self._page.close()
+            await self._page.close()
         temp = self._prev
         while(temp is not None):
-            temp._page.close()
+            await temp._page.close()
             temp = temp._prev
     def set_prev(self):
         self._page = self._prev
@@ -296,7 +296,7 @@ class PlaywrightPlugin(Plugin):
 
         return f"Element clicked successfully."
     @tool 
-    def enter_email(self, selector: str):
+    def enter_google_email(self, selector: str):
         """
         Generate and insert a working google email into an input element. 
         :param str selector: The selector for the element you want to enter the email into.
@@ -316,7 +316,7 @@ class PlaywrightPlugin(Plugin):
             return f"Unable to insert email. {e}"
         return f"Email was successfully inserted."
     @tool
-    def enter_password(self, selector: str): 
+    def enter_google_password(self, selector: str): 
         """
         Insert a password for the working google email generated prior. 
         :param str selector: The selector for the element you want to enter the password into.
@@ -393,7 +393,7 @@ class PlaywrightPlugin(Plugin):
     #     return "Enter key was successfully pressed."
 
     @tool
-    def assert_text(self, text: str, selector: str):
+    def assert_text(self, text: str, selector: str = "html"):
         """
         Assert that a text is on the page or in a specified element.
 

@@ -17,7 +17,7 @@ from .utils import count_tokens, generate_short_id, md5
 
 load_dotenv()
 
-AVAILABLE_MODELS = ["gpt-3.5-turbo", "gpt-4-turbo", "gpt-4o"]
+AVAILABLE_MODELS = ["gpt-3.5-turbo", "gpt-4-turbo", "gpt-4o", "gpt-4o-mini"]
 
 
 def get_openai_client():
