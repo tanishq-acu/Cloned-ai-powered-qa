@@ -9,9 +9,6 @@ from ai_powered_qa.components.plugin import tool
 from ai_powered_qa.custom_plugins.playwright_plugin.base import LinkedPage
 from . import clean_html
 from .base import PageNotLoadedException, PlaywrightPlugin
-from dotenv import load_dotenv
-import os
-from ai_powered_qa import config
 
 JS_FUNCTIONS = cleandoc(
     """

@@ -7,11 +7,8 @@ from playwright.async_api import Error
 
 from ai_powered_qa.components.plugin import tool
 from ai_powered_qa.custom_plugins.playwright_plugin.base import LinkedPage
-from ai_powered_qa import config
 from . import clean_html
 from .base import PageNotLoadedException, PlaywrightPlugin
-from dotenv import load_dotenv
-import os
 
 JS_FUNCTIONS = cleandoc(
     """

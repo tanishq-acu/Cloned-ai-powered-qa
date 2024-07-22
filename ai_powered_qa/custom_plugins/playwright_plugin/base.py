@@ -1,7 +1,6 @@
 import asyncio
 import base64
 from inspect import cleandoc
-import json
 from typing import Any
 
 from anthropic import Anthropic
@@ -128,7 +127,7 @@ def get_openai_client():
 def get_anthropic_client():
     return Anthropic()
 
-class LinkedPage():## You get the page of any action that opens a popup(get the popup as a page). Then add it here. Only use self._page. If the self._page is ever closed, then set it to prev.
+class LinkedPage():  # You get the page of any action that opens a popup(get the popup as a page). Then add it here. Only use self._page. If the self._page is ever closed, then set it to prev.
     def __init__(self, page: playwright.async_api.Page):
         self._page = page
         self._prev = None

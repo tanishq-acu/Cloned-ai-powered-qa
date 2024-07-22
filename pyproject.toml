@@ -21,6 +21,7 @@ langsmith = "0.1.40"
 anthropic = "0.24.0"
 playwright-stealth = "^1.0.6"
 setuptools = "70.3.0"
+flake8 = "^7.1.0"
 
 
 [tool.poetry.group.dev.dependencies]
