@@ -307,7 +307,7 @@ class PlaywrightPlugin(Plugin):
         page.on("popup", self._handle_popup)
         try:
             await page.locator(selector).fill(
-                os.getenv("email"), timeout=config.PLAYWRIGHT_TIMEOUT
+                os.getenv("EMAIL"), timeout=config.PLAYWRIGHT_TIMEOUT
             )
 
         except Exception as e:
@@ -327,7 +327,7 @@ class PlaywrightPlugin(Plugin):
         page.on("popup", self._handle_popup)
         try:
             await page.locator(selector).fill(
-                os.getenv("password"), timeout = config.PLAYWRIGHT_TIMEOUT
+                os.getenv("PASSWORD"), timeout = config.PLAYWRIGHT_TIMEOUT
             )
         except Exception as e:
             print(e)
