@@ -4,6 +4,7 @@ import re
 
 def clean_attributes(soup: BeautifulSoup) -> str:
     allowed_attrs = [
+        "input",
         "class",
         "id",
         "name",
@@ -57,14 +58,19 @@ def remove_useless_tags(soup: BeautifulSoup):
     ]
     for t in soup.find_all(tags_to_remove):
         t.decompose()
-
-
 def remove_invisible(soup: BeautifulSoup):
     to_keep = set()
     visible_elements = soup.find_all(attrs={"data-playwright-visible": True})
     focused_element = soup.find(attrs={"data-playwright-focused": True})
+    # input_elements = soup.find_all("div", {"class" : re.compile(r'^input+')})
+    # input_tags = soup.find_all("input")
+    # submit_tags = soup.find_all(attrs={"type": re.compile(r'^submit+')})
+    # text_area = soup.find_all("textarea")
+    buttons = soup.find_all("button")
     if focused_element:
         visible_elements.append(focused_element)
+    visible_elements += buttons
+    # visible_elements += input_elements + input_tags + submit_tags+ buttons + text_area
     for element in visible_elements:
         current = element
         while current is not None:

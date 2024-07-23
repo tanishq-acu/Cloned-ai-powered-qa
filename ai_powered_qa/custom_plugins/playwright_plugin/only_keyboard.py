@@ -254,8 +254,8 @@ class PlaywrightPluginOnlyKeyboard(PlaywrightPlugin):
             page = await self._browser_context.new_page()
             self._pages = LinkedPage(page)
         if (self._pages._page.is_closed()):
-            while(self._pages._page.is_closed() and self._pages._page is not None):
-                self._pages.set_prev()
+            while(self._pages._page is not None and self._pages._page.is_closed()):
+                await self._pages.set_prev()
             if(self._pages._page is None):
                 page = await self._browser_context.new_page()
                 self._pages._page = page

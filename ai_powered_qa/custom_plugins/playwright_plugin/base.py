@@ -131,7 +131,7 @@ class LinkedPage():  # You get the page of any action that opens a popup(get the
     def __init__(self, page: playwright.async_api.Page):
         self._page = page
         self._prev = None
-    def add_page(self, page: playwright.async_api.Page):
+    async def add_page(self, page: playwright.async_api.Page):
         if(self._page != None):
             new = LinkedPage(self._page)
             self._page = page
@@ -139,7 +139,7 @@ class LinkedPage():  # You get the page of any action that opens a popup(get the
         else:
             self.page = page
             self._prev = None
-    def set_page(self,page: playwright.async_api.Page):
+    async def set_page(self,page: playwright.async_api.Page):
         self._page = page
     async def close(self):
         if(self._page is not None):
@@ -148,8 +148,9 @@ class LinkedPage():  # You get the page of any action that opens a popup(get the
         while(temp is not None):
             await temp._page.close()
             temp = temp._prev
-    def set_prev(self):
-        self._page = self._prev
+    async def set_prev(self):
+        if(self._prev is not None):
+            self._page = self._prev._page
         if(self._prev is not None):
             self._prev = self._prev._prev
 
@@ -295,7 +296,7 @@ class PlaywrightPlugin(Plugin):
 
         return f"Element clicked successfully."
     @tool 
-    def enter_google_email(self, selector: str):
+    def type_google_email(self, selector: str):
         """
         Generate and insert a working google email into an input element. 
         :param str selector: The selector for the element you want to enter the email into.
@@ -315,7 +316,7 @@ class PlaywrightPlugin(Plugin):
             return f"Unable to insert email. {e}"
         return f"Email was successfully inserted."
     @tool
-    def enter_google_password(self, selector: str): 
+    def type_google_password(self, selector: str): 
         """
         Insert a password for the working google email generated prior. 
         :param str selector: The selector for the element you want to enter the password into.
@@ -490,7 +491,7 @@ class PlaywrightPlugin(Plugin):
             messages=[
                 {
                     "role": "system",
-                    "content": "Describe the screenshot. Focus specifically on popups, modals and other elements obscuring the main content.",
+                    "content": "Describe the screenshot. Focus specifically on popups, dialogs, modals and other elements obscuring the main content.",
                 },
                 {
                     "role": "user",
@@ -509,7 +510,7 @@ class PlaywrightPlugin(Plugin):
         return completion.choices[0].message.content
 
     async def _ensure_page(self) -> playwright.async_api.Page:
-        if not self._pages:
+        if self._pages is None:
             self._playwright = await playwright.async_api.async_playwright().start()
             self._browser = await self._playwright.firefox.launch(headless=True)
             self._browser_context = await self._browser.new_context(ignore_https_errors=True)
@@ -517,8 +518,8 @@ class PlaywrightPlugin(Plugin):
             self._pages = LinkedPage(page)
             await stealth_async(self._pages._page)
         if (self._pages._page.is_closed()):
-            while(self._pages._page.is_closed() and self._pages._page is not None):
-                self._pages.set_prev()
+            while(self._pages._page is not None and self._pages._page.is_closed()):
+                await self._pages.set_prev()
             if(self._pages._page is None):
                 page = await self._browser_context.new_page()
                 self._pages._page = page
@@ -528,8 +529,15 @@ class PlaywrightPlugin(Plugin):
     async def _screenshot(self):
         page = await self._ensure_page()
         # locator().screenshot() waits for visibility and stability
-        # await page.locator("body").screenshot()
-        self._buffer = await page.screenshot()
+        counter = 500
+        while(counter > -500):
+            counter -=1
+            try:
+                self._buffer = await page.screenshot()
+                return
+            except Exception as e:
+                page = await self._ensure_page()
+                
 
     def _run_async(self, coroutine):
         asyncio.set_event_loop(self._loop)

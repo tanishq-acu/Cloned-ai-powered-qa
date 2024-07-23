@@ -9,9 +9,38 @@ from ai_powered_qa.components.plugin import tool
 from ai_powered_qa.custom_plugins.playwright_plugin.base import LinkedPage
 from . import clean_html
 from .base import PageNotLoadedException, PlaywrightPlugin
-
+import time
 JS_FUNCTIONS = cleandoc(
     """
+    function extractHTML(node) {
+        if (!node) return ''
+        if (node.nodeType===3) return node.textContent.trim()
+        if (node.nodeType!==1) return ''
+
+        let html = ''
+        let outer = node.cloneNode()
+
+        node = node.shadowRoot || node
+        
+        if (node.children.length) {
+            
+            for (let n of node.childNodes) {
+                if (n.assignedNodes) {
+                
+                    if (n.assignedNodes()[0]){
+                        html += extractHTML(n.assignedNodes()[0])
+
+                    } else { html += n.innerHTML }                    
+
+                } else { html += extractHTML(n) }
+            }
+
+        } else { html = node.innerHTML }
+
+        outer.innerHTML = html
+        return outer.outerHTML
+        
+    }
     function updateElementVisibility() {
         const visibilityAttribute = 'data-playwright-visible';
 
@@ -111,11 +140,12 @@ class PlaywrightPluginOnlyVisible(PlaywrightPlugin):
             """
             You are an expert QA engineer. Your goal is to execute text scenarios given to you in natural language by controlling a browser.
             You can see your previous actions, and the user will give you the current state of the browser and the description of the test scenario. Your task is to suggest the next step to take towards completing the test scenario.
+            Always sign in with Google or continue with Google and use the functions 'type_google_email()' and 'type_google_password()'.
             When making assertions in the scenario, make them as robust as possible. Focus on things that should be stable across multiple runs of the test scenarion.
             You can use multiple assertions.
-            For example in search results make sure the UI for search results is there, and check for specific keywords in the results that should be stable, but avoid asserting long texts are on the page, word for word.
-            Before executing the test case, make sure to close any cookie consent, promotional or sign-up banners and popups that could be obscuring the elements you want to interact with.
-            Always end the scenario with a call to the "finish" tool.
+            For example in search results, check for specific keywords in the results that should be stable, but avoid asserting long texts are on the page, word for word.
+            Before executing the test case, make sure to close any dialog panels, cookie consent, promotional or sign-up banners, or popups; they could be obscuring the elements you want to interact with.
+            Always end the scenario with a call to the "finish" tool. 
             """
         )
 
@@ -139,13 +169,20 @@ class PlaywrightPluginOnlyVisible(PlaywrightPlugin):
                 await page.evaluate("window.setValueAsDataAttribute()")
             else:
                 raise e
+        # try:
+        #     await page.wait_for_load_state()
+        #     html = await page.evaluate("extractHTML(document.body)")
+        # except Exception as e:
+        #     await page.wait_for_load_state()
+        #     html = await page.content()
         html = await page.content()
         html_clean = self._clean_html(html)
+        print(html_clean)
         return html_clean
     def _enhance_selector(self, selector):
         return selector
     async def _ensure_page(self) -> playwright.async_api.Page:
-        if not self._pages:
+        if self._pages is None:
             self._playwright = await playwright.async_api.async_playwright().start()
             self._browser = await self._playwright.firefox.launch(headless=False)
             self._browser_context = await self._browser.new_context(ignore_https_errors=True)
@@ -154,7 +191,7 @@ class PlaywrightPluginOnlyVisible(PlaywrightPlugin):
             self._pages = LinkedPage(page)
         if (self._pages._page.is_closed()):
             while(self._pages._page is not None and self._pages._page.is_closed()):
-                self._pages.set_prev()
+                await self._pages.set_prev()
             if(self._pages._page is None):
                 page = await self._browser_context.new_page()
                 self._pages._page = page
@@ -211,7 +248,13 @@ class PlaywrightPluginOnlyVisible(PlaywrightPlugin):
     #         print(e)
     #         return f"Unable to scroll. {e}"
     #     return f"Scrolled successfully."
-
+    @tool
+    def wait(self):
+        """
+        Wait for some time or pass over to the next iteration. 
+        """
+        time.sleep(3)
+        return "Done waiting."
     @tool
     def finish(self, success: bool, comment: str):
         """

@@ -5,6 +5,12 @@ from ai_powered_qa.components.agent_store import AgentStore
 from ai_powered_qa.ui_common.constants import AGENT_INSTANCE_KEY
 from ai_powered_qa.ui_common.load_agent import NAME_TO_PLUGIN_CLASS
 import json
+## TODO:
+    ## Figure out how to enforce the model to use signin with google 
+    ## possibly check if the signin with google button si being ommitted by the html cleaner
+    ## Figure out how to avoid progression through the program that waits for the page to load before it continues
+    ## figure out how to manage the shadowDOM (possibly just skip the function that removes invisible tags)
+    ## Find a way to reduce how expensive this is 
 def test_agent_playwright_response():
     agent = Agent(agent_name="test_agent_with_playwright")
     plugin = PlaywrightPlugin()
@@ -92,14 +98,16 @@ def test_agent_qa():
     infile = open(inFilePath, "r")
     lines = infile.readlines()
     for line in lines:
-        prompt = f"Please go to {line.strip()} and verify that when you send a message, you get a successful response."
+        prompt = f"Please go to {line.strip()} and verify that when you send a message, you receive a response. Always sign in with google and use the functions for entering credentials."
         interaction = agent.generate_interaction(prompt)
-        # if interaction.agent_response.content:
-        #     print("Assistant:" + interaction.agent_response.content + "\n")
-        #     if interaction.agent_response.tool_calls:
-        #         for tool_call in interaction.agent_response.tool_calls:
-        #             print("Function arguments:" + json.loads(tool_call.function.arguments) + "\n")
-        max_iter = 10
+        ### Start output
+        if interaction.agent_response.content:
+            print("Assistant:" + interaction.agent_response.content + "\n")
+            if interaction.agent_response.tool_calls:
+                for tool_call in interaction.agent_response.tool_calls:
+                    print("Function arguments:" + json.loads(tool_call.function.arguments) + "\n")
+        ### end output
+        max_iter = 18
         while(max_iter > 0 and interaction.agent_response.tool_calls and not any(
             tool_call.function.name == "finish" for tool_call in interaction.agent_response.tool_calls
             )
@@ -108,14 +116,16 @@ def test_agent_qa():
             agent_store.save_interaction(agent, agent.commit_interaction(interaction=interaction))
             agent_store.save_history(agent)
             interaction = agent.generate_interaction()
-            # if interaction.tool_responses is not None:
-            #     for tool_call in interaction.tool_responses:
-            #         print(f"Tool call: {tool_call["content"]}\n")
-            # if interaction.agent_response.content:
-            #     print(f"Assistant: {interaction.agent_response.content}\n")
-            # if interaction.agent_response.tool_calls:
-            #      for tool_call in interaction.agent_response.tool_calls:
-            #         print(f"Function arguments: {json.loads(tool_call.function.arguments)}\n")
+            ### Start output:
+            if interaction.tool_responses is not None:
+                for tool_call in interaction.tool_responses:
+                    print(f"Tool call: {tool_call["content"]}\n")
+            if interaction.agent_response.content:
+                print(f"Assistant: {interaction.agent_response.content}\n")
+            if interaction.agent_response.tool_calls:
+                 for tool_call in interaction.agent_response.tool_calls:
+                    print(f"Function arguments: {json.loads(tool_call.function.arguments)}\n")
+            ### End output
         if(interaction.agent_response.tool_calls):
             assert(any(tool_call.function.name == "finish" for tool_call in interaction.agent_response.tool_calls))
                 
