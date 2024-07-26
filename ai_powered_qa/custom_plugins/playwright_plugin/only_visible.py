@@ -12,34 +12,25 @@ from .base import PageNotLoadedException, PlaywrightPlugin
 import time
 JS_FUNCTIONS = cleandoc(
     """
-    function extractHTML(node) {
-        if (!node) return ''
-        if (node.nodeType===3) return node.textContent.trim()
-        if (node.nodeType!==1) return ''
+    function getFullHtml() {
+        function getHtmlFromElement(element) {
+            let html = '';
 
-        let html = ''
-        let outer = node.cloneNode()
-
-        node = node.shadowRoot || node
-        
-        if (node.children.length) {
-            
-            for (let n of node.childNodes) {
-                if (n.assignedNodes) {
-                
-                    if (n.assignedNodes()[0]){
-                        html += extractHTML(n.assignedNodes()[0])
-
-                    } else { html += n.innerHTML }                    
-
-                } else { html += extractHTML(n) }
+            if (element.shadowRoot) {
+                html += getHtmlFromElement(element.shadowRoot);
             }
-
-        } else { html = node.innerHTML }
-
-        outer.innerHTML = html
-        return outer.outerHTML
+            html += element.outerHTML;
         
+            element.childNodes.forEach(child => {
+                if (child.nodeType === Node.ELEMENT_NODE) {
+                    html += getHtmlFromElement(child);
+                }
+            });
+
+            return html;
+        }
+
+        return getHtmlFromElement(document.documentElement);
     }
     function updateElementVisibility() {
         const visibilityAttribute = 'data-playwright-visible';
@@ -140,12 +131,15 @@ class PlaywrightPluginOnlyVisible(PlaywrightPlugin):
             """
             You are an expert QA engineer. Your goal is to execute text scenarios given to you in natural language by controlling a browser.
             You can see your previous actions, and the user will give you the current state of the browser and the description of the test scenario. Your task is to suggest the next step to take towards completing the test scenario.
-            Always sign in with Google or continue with Google and use the functions 'type_google_email()' and 'type_google_password()'.
             When making assertions in the scenario, make them as robust as possible. Focus on things that should be stable across multiple runs of the test scenarion.
-            You can use multiple assertions.
-            For example in search results, check for specific keywords in the results that should be stable, but avoid asserting long texts are on the page, word for word.
-            Before executing the test case, make sure to close any dialog panels, cookie consent, promotional or sign-up banners, or popups; they could be obscuring the elements you want to interact with.
+            You can use multiple assertions, but not multiple actions.
+            Avoid asserting texts are on the page word for word, and instead focus on a single word or two.
+            Before executing the test case, make sure to accept, continue, or close out on any modals, dialogs, cookie consent, promotional or sign-up banners, or popups.
+            Note that if you need to sign in to run the test scenario, you can only sign in with google with credentials from the appropriate tool. Always ignore captchas.
+            If your login page claims that there are too many login attempts, simply click continue.
             Always end the scenario with a call to the "finish" tool. 
+            Ensure you get the selectors directly from the html and do not guess them(incorrect selectors are catastrophic). 
+            Ignore captchas and try to work around them.
             """
         )
 
@@ -169,18 +163,17 @@ class PlaywrightPluginOnlyVisible(PlaywrightPlugin):
                 await page.evaluate("window.setValueAsDataAttribute()")
             else:
                 raise e
-        # try:
-        #     await page.wait_for_load_state()
-        #     html = await page.evaluate("extractHTML(document.body)")
-        # except Exception as e:
-        #     await page.wait_for_load_state()
-        #     html = await page.content()
-        html = await page.content()
+        try:
+            await page.wait_for_load_state()
+            html = await page.evaluate("getFullHtml()")
+        except Exception as e:
+            await page.wait_for_load_state()
+            html = await page.content()
+            print("JS failed, using playwright to get page content.")
+        # html = await page.content()
         html_clean = self._clean_html(html)
         print(html_clean)
         return html_clean
-    def _enhance_selector(self, selector):
-        return selector
     async def _ensure_page(self) -> playwright.async_api.Page:
         if self._pages is None:
             self._playwright = await playwright.async_api.async_playwright().start()
@@ -285,15 +278,14 @@ class PlaywrightPluginOnlyVisible(PlaywrightPlugin):
         to save tokens.
         """
         soup = BeautifulSoup(html, "html.parser")
-        clean_html.remove_invisible(soup)
         clean_html.remove_useless_tags(soup)
         clean_html.clean_attributes(soup)
         html_clean = soup.prettify()
         html_clean = clean_html.remove_comments(html_clean)
-        return html_clean
+        return clean_html.remove_duplicate_lines(html_clean)
 
     def _enhance_selector(self, selector):
-        return _selector_visible(selector)
+        return selector
 
 
 def _selector_visible(selector: str) -> str:

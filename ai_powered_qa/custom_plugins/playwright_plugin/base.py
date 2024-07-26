@@ -127,7 +127,7 @@ def get_openai_client():
 def get_anthropic_client():
     return Anthropic()
 
-class LinkedPage():  # You get the page of any action that opens a popup(get the popup as a page). Then add it here. Only use self._page. If the self._page is ever closed, then set it to prev.
+class LinkedPage():
     def __init__(self, page: playwright.async_api.Page):
         self._page = page
         self._prev = None
@@ -135,11 +135,13 @@ class LinkedPage():  # You get the page of any action that opens a popup(get the
         if(self._page != None):
             new = LinkedPage(self._page)
             self._page = page
+            if(self._prev is not None):
+                new._prev = self._prev
             self._prev = new
         else:
             self.page = page
             self._prev = None
-    async def set_page(self,page: playwright.async_api.Page):
+    async def set_page(self, page: playwright.async_api.Page):
         self._page = page
     async def close(self):
         if(self._page is not None):
@@ -151,9 +153,7 @@ class LinkedPage():  # You get the page of any action that opens a popup(get the
     async def set_prev(self):
         if(self._prev is not None):
             self._page = self._prev._page
-        if(self._prev is not None):
             self._prev = self._prev._prev
-
 
         
 class PlaywrightPlugin(Plugin):
@@ -292,48 +292,57 @@ class PlaywrightPlugin(Plugin):
             return f"Element did not become clickable within {timeout}ms. It might be obscured by another element."
         except Exception as e:
             print(e)
-            return f"Unable to click on element. {e}"
+            return f"Unable to click on element. Try a different selector or different action!.{e}"
 
-        return f"Element clicked successfully."
-    @tool 
-    def type_google_email(self, selector: str):
-        """
-        Generate and insert a working google email into an input element. 
-        :param str selector: The selector for the element you want to enter the email into.
-        """
-        return self._run_async(self._enter_email(selector))
-    async def _enter_email(self, selector: str):
-        load_dotenv()
-        page = await self._ensure_page()
-        page.on("popup", self._handle_popup)
-        try:
-            await page.locator(selector).fill(
-                os.getenv("EMAIL"), timeout=config.PLAYWRIGHT_TIMEOUT
-            )
-
-        except Exception as e:
-            print(e)
-            return f"Unable to insert email. {e}"
-        return f"Email was successfully inserted."
+        return f"Element has been clicked. Move on!"
     @tool
-    def type_google_password(self, selector: str): 
+    def get_google_credentials(self):
         """
-        Insert a password for the working google email generated prior. 
-        :param str selector: The selector for the element you want to enter the password into.
+        Generates a working google email and password that can be used for sign-in pages. Do not share this with anyone.
         """
-        return self._run_async(self._enter_password(selector))
-    async def _enter_password(self, selector: str):
+        return self._run_async(self._get_google_credentials())
+    async def _get_google_credentials(self):
         load_dotenv()
-        page = await self._ensure_page()
-        page.on("popup", self._handle_popup)
-        try:
-            await page.locator(selector).fill(
-                os.getenv("PASSWORD"), timeout = config.PLAYWRIGHT_TIMEOUT
-            )
-        except Exception as e:
-            print(e)
-            return f"Unable to insert password. {e}"
-        return f"Password was successfully inserted"
+        return(os.getenv("EMAIL"), os.getenv("PASSWORD"))
+    # @tool 
+    # def type_google_email(self, selector: str):
+    #     """
+    #     Generate and insert a working google email into an input element. 
+    #     :param str selector: The selector for the element you want to enter the email into.
+    #     """
+    #     return self._run_async(self._enter_email(selector))
+    # async def _enter_email(self, selector: str):
+    #     load_dotenv()
+    #     page = await self._ensure_page()
+    #     page.on("popup", self._handle_popup)
+    #     try:
+    #         await page.locator(selector).fill(
+    #             os.getenv("EMAIL"), timeout=config.PLAYWRIGHT_TIMEOUT
+    #         )
+
+    #     except Exception as e:
+    #         print(e)
+    #         return f"Unable to insert email. Try a better selector. {e}"
+    #     return f"Email was successfully inserted."
+    # @tool
+    # def type_google_password(self, selector: str): 
+    #     """
+    #     Insert a password for the working google email generated prior. 
+    #     :param str selector: The selector for the element you want to enter the password into.
+    #     """
+    #     return self._run_async(self._enter_password(selector))
+    # async def _enter_password(self, selector: str):
+    #     load_dotenv()
+    #     page = await self._ensure_page()
+    #     page.on("popup", self._handle_popup)
+    #     try:
+    #         await page.locator(selector).fill(
+    #             os.getenv("PASSWORD"), timeout = config.PLAYWRIGHT_TIMEOUT
+    #         )
+    #     except Exception as e:
+    #         print(e)
+    #         return f"Unable to insert password. Try a better selector. {e}"
+    #     return f"Password was successfully inserted"
     @tool
     def fill_text(self, selector: str, text: str):
         """
@@ -349,13 +358,13 @@ class PlaywrightPlugin(Plugin):
         page = await self._ensure_page()
         page.on("popup", self._handle_popup)
         try:
-            await page.locator(self._enhance_selector(selector)).fill(
-                text, timeout=config.PLAYWRIGHT_TIMEOUT
+            await page.locator(selector).fill(
+                text, timeout=config.PLAYWRIGHT_TIMEOUT,
             )
         except Exception as e:
             print(e)
-            return f"Unable to fill element. {e}"
-        return f"Text input was successfully performed."
+            return f"Unable to fill element. Selector may be incorrect or not on page. {e}"
+        return f"Text input was performed. Move on!"
 
     # @tool
     # def select_option(self, selector: str, value: str):
@@ -405,12 +414,14 @@ class PlaywrightPlugin(Plugin):
     async def _assert_text(self, text: str, selector: str = "html"):
         page = await self._ensure_page()
         try:
-            await expect(page.locator(selector)).to_contain_text(text)
+            contents = await page.locator(selector).all_text_contents()
+            for item in contents: 
+                if(text in item):
+                    return f"Successfully validated the assertion."   
+            raise Exception
         except Exception as e:
             print(e)
             return f"Unable to validate the assertion. {e}"
-
-        return f"Successfully validated the assertion."
 
     def close(self):
         self._run_async(self._close())
@@ -529,8 +540,8 @@ class PlaywrightPlugin(Plugin):
     async def _screenshot(self):
         page = await self._ensure_page()
         # locator().screenshot() waits for visibility and stability
-        counter = 500
-        while(counter > -500):
+        counter = 50
+        while(counter > 0):
             counter -=1
             try:
                 self._buffer = await page.screenshot()
