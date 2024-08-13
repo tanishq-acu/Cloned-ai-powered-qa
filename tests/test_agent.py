@@ -75,7 +75,7 @@ def test_agent_qa():
         "agents",
         name_to_plugin_class=NAME_TO_PLUGIN_CLASS,
     )
-    agent_name = "acuvity_poc_agent"
+    agent_name = "acuvity_qa_agent"
     playwright_plugin_name = "PlaywrightPluginOnlyVisible"
     _agent = agent_store.load_agent(
         agent_name,

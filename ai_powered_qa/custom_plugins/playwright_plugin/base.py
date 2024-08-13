@@ -166,7 +166,6 @@ class PlaywrightPlugin(Plugin):
     _pages: LinkedPage | None
     _buffer: bytes | None
     _browser_context: playwright.async_api._generated.BrowserContext
-
     def __init__(self, **data):
         super().__init__(**data)
         self._playwright = None
@@ -275,7 +274,8 @@ class PlaywrightPlugin(Plugin):
             selector = self._enhance_selector(selector)
 
             # Count the number of elements that match the selector
-            element_count = await page.locator(selector).count()
+            elements = await page.query_selector_all(selector)
+            element_count = len(elements)
 
             # If no elements found
             if element_count == 0:
@@ -283,7 +283,21 @@ class PlaywrightPlugin(Plugin):
 
             # If more than one element found
             if element_count > 1:
-                raise Exception("Selector returned more than one element.")
+                visible_elements = [el for el in elements if (await el.get_attribute('data-playwright-visible')) == 'true']
+                if(len(visible_elements) > 1):
+                    raise Exception("Selector returned more than one element.")
+                elif(len(visible_elements) <= 0):
+                    raise Exception("Selector returned more than one element.")
+                else:
+                    visible_el = visible_elements[0]
+                    try:
+                        await visible_el.click(timeout=timeout)    
+                    except TimeoutError:
+                        return f"Element did not become clickable within {timeout}ms. It might be obscured by another element." 
+                    except Exception as e:
+                        print(e)
+                        return f"Unable to click on element. Try a different selector or different action!.{e}"
+                    return f"Element has been clicked. Move on!"
             await page.click(
                 selector=selector,
                 timeout=timeout,

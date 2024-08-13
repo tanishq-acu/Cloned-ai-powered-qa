@@ -10,6 +10,25 @@ from ai_powered_qa.custom_plugins.playwright_plugin.base import LinkedPage
 from . import clean_html
 from .base import PageNotLoadedException, PlaywrightPlugin
 import time
+EXTRA_FUNCTIONS = cleandoc(
+"""
+function hasShadowDOM(node) {
+  if (node === null){
+    return true;
+  }
+  if (node.shadowRoot) {
+    return true;
+  }
+  
+  for (let child of node.children) {
+    if (hasShadowDOM(child)) {
+      return true;
+    }
+  }
+  return false;
+}
+"""
+)
 JS_FUNCTIONS = cleandoc(
     """
     function getFullHtml() {
@@ -124,7 +143,6 @@ JS_FUNCTIONS = cleandoc(
 
 class PlaywrightPluginOnlyVisible(PlaywrightPlugin):
     name: str = "PlaywrightPluginOnlyVisible"
-
     @property
     def system_message(self) -> str:
         return cleandoc(
@@ -133,7 +151,7 @@ class PlaywrightPluginOnlyVisible(PlaywrightPlugin):
             You can see your previous actions, and the user will give you the current state of the browser and the description of the test scenario. Your task is to suggest the next step to take towards completing the test scenario.
             When making assertions in the scenario, make them as robust as possible. Focus on things that should be stable across multiple runs of the test scenarion.
             You can use multiple assertions, but not multiple actions.
-            Avoid asserting texts are on the page word for word, and instead focus on a single word or two.
+            Avoid asserting texts are on the page word for word, and instead focus on a single word.
             Before executing the test case, make sure to accept, continue, or close out on any modals, dialogs, cookie consent, promotional or sign-up banners, or popups.
             Note that if you need to sign in to run the test scenario, you can only sign in with google with credentials from the appropriate tool. Always ignore captchas.
             If your login page claims that there are too many login attempts, simply click continue.
@@ -145,6 +163,7 @@ class PlaywrightPluginOnlyVisible(PlaywrightPlugin):
 
     async def _get_page_content(self):
         page = await self._ensure_page()
+        hasShadowDom = False
         if page.url == "about:blank":
             raise PageNotLoadedException("No page loaded yet.")
         try:
@@ -163,16 +182,31 @@ class PlaywrightPluginOnlyVisible(PlaywrightPlugin):
                 await page.evaluate("window.setValueAsDataAttribute()")
             else:
                 raise e
+        if(page.is_closed()):
+            page = await self._ensure_page()
         try:
-            await page.wait_for_load_state()
-            html = await page.evaluate("getFullHtml()")
+            shaDOM = await page.evaluate("hasShadowDOM(document.body)")
         except Exception as e:
+            page = await self._ensure_page()
+            shaDOM = await page.evaluate("hasShadowDOM(document.body)")
+        if (shaDOM):
+            hasShadowDom = True
+            try:
+                await page.wait_for_load_state()
+                html = await page.evaluate("getFullHtml()")
+            except Exception as e:
+                await page.wait_for_load_state()
+                html = await page.content()
+                print("JS failed, using playwright to get page content.")
+        else:
+            print("No shadowDOM, defaulting to playwright for page content.")
             await page.wait_for_load_state()
             html = await page.content()
-            print("JS failed, using playwright to get page content.")
         # html = await page.content()
-        html_clean = self._clean_html(html)
-        print(html_clean)
+        if hasShadowDom:
+            html_clean = self._clean_html(html)
+        else:
+            html_clean = self._clean_html_old(html)
         return html_clean
     async def _ensure_page(self) -> playwright.async_api.Page:
         if self._pages is None:
@@ -180,6 +214,7 @@ class PlaywrightPluginOnlyVisible(PlaywrightPlugin):
             self._browser = await self._playwright.firefox.launch(headless=False)
             self._browser_context = await self._browser.new_context(ignore_https_errors=True)
             await self._browser_context.add_init_script(JS_FUNCTIONS)
+            await self._browser_context.add_init_script(EXTRA_FUNCTIONS)
             page = await self._browser_context.new_page()
             self._pages = LinkedPage(page)
         if (self._pages._page.is_closed()):
@@ -270,7 +305,18 @@ class PlaywrightPluginOnlyVisible(PlaywrightPlugin):
             await self._playwright.stop()
         self._pages = None
         return "Session finished."
-
+    @staticmethod
+    def _clean_html_old(html: str) -> str:
+        """
+        Cleans the web page HTML AND removes invisible tags
+        """
+        soup = BeautifulSoup(html, "html.parser")
+        clean_html.remove_invisible(soup)
+        clean_html.remove_useless_tags(soup)
+        clean_html.clean_attributes(soup)
+        html_clean = soup.prettify()
+        html_clean = clean_html.remove_comments(html_clean)
+        return clean_html.remove_duplicate_lines(html_clean)
     @staticmethod
     def _clean_html(html: str) -> str:
         """
