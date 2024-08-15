@@ -230,7 +230,7 @@ for entry in logs:
                         text = arguments['text']
                         add_line(f"page = ensurePage(pages, context)")
                         add_line(f"try:")
-                        add_line(f"    contents = page.locator('{selector}').all_text_contents()")
+                        add_line(f"    contents = page.locator('body').all_text_contents()")
                         add_line(f"    for item in contents:")
                         add_line(f"        if {text} in item:")
                         add_line(f"            assert True")

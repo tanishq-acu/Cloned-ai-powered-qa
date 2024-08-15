@@ -155,41 +155,131 @@ def run(playwright):
     pages = LinkedPage(page)
     page = ensurePage(pages, context)
     try:
-        page.goto("https://chatgpt.com")
+        page.goto("https://chat.cohere.com")
     except Exception as e:
         page= ensurePage(pages, context)
-        page.goto("https://chatgpt.com")
+        page.goto("https://chat.cohere.com")
     page.wait_for_load_state("load")
     page = ensurePage(pages, context)
     try:
-        loc = page.locator('textarea#prompt-textarea')
+        loc = page.locator('button[aria-label="Accept All"]')
         loc.wait_for(state="attached")
-        page.fill('textarea#prompt-textarea', 'Hello, ChatGPT!')
-    except Exception as e:
-        page= ensurePage(pages, context)
-        loc = page.locator('textarea#prompt-textarea')
-        loc.wait_for(state="attached")
-        page.fill('textarea#prompt-textarea', 'Hello, ChatGPT!')
-    page = ensurePage(pages, context)
-    try:
-        loc = page.locator('button[data-testid="send-button"]')
-        loc.wait_for(state="attached")
-        page.click('button[data-testid="send-button"]')
+        page.click('button[aria-label="Accept All"]')
     except Exception as e:
         page = ensurePage(pages, context)
-        loc = page.locator(f'button[data-testid="send-button"][data-playwright-visible=true]')
+        loc = page.locator(f'button[aria-label="Accept All"][data-playwright-visible=true]')
         loc.wait_for(state="attached")
-        page.click('button[data-testid="send-button"][data-playwright-visible=true]')
+        page.click('button[aria-label="Accept All"][data-playwright-visible=true]')
+    page = ensurePage(pages, context)
+    try:
+        loc = page.locator('button:has-text("Continue with Google")')
+        loc.wait_for(state="attached")
+        page.click('button:has-text("Continue with Google")')
+    except Exception as e:
+        page = ensurePage(pages, context)
+        loc = page.locator(f'button:has-text("Continue with Google")[data-playwright-visible=true]')
+        loc.wait_for(state="attached")
+        page.click('button:has-text("Continue with Google")[data-playwright-visible=true]')
+    page = ensurePage(pages, context)
+    try:
+        loc = page.locator('input[type="email"]')
+        loc.wait_for(state="attached")
+        page.fill('input[type="email"]', 'qaagentdev@gmail.com')
+    except Exception as e:
+        page= ensurePage(pages, context)
+        loc = page.locator('input[type="email"]')
+        loc.wait_for(state="attached")
+        page.fill('input[type="email"]', 'qaagentdev@gmail.com')
+    page = ensurePage(pages, context)
+    try:
+        loc = page.locator('button:has-text("Next")')
+        loc.wait_for(state="attached")
+        page.click('button:has-text("Next")')
+    except Exception as e:
+        page = ensurePage(pages, context)
+        loc = page.locator(f'button:has-text("Next")[data-playwright-visible=true]')
+        loc.wait_for(state="attached")
+        page.click('button:has-text("Next")[data-playwright-visible=true]')
+    page = ensurePage(pages, context)
+    try:
+        loc = page.locator('input[type="password"]')
+        loc.wait_for(state="attached")
+        page.fill('input[type="password"]', 'aipoweredqapw')
+    except Exception as e:
+        page= ensurePage(pages, context)
+        loc = page.locator('input[type="password"]')
+        loc.wait_for(state="attached")
+        page.fill('input[type="password"]', 'aipoweredqapw')
+    page = ensurePage(pages, context)
+    try:
+        loc = page.locator('button:has-text("Next")')
+        loc.wait_for(state="attached")
+        page.click('button:has-text("Next")')
+    except Exception as e:
+        page = ensurePage(pages, context)
+        loc = page.locator(f'button:has-text("Next")[data-playwright-visible=true]')
+        loc.wait_for(state="attached")
+        page.click('button:has-text("Next")[data-playwright-visible=true]')
+    page = ensurePage(pages, context)
+    try:
+        loc = page.locator('button:has-text("Continue")')
+        loc.wait_for(state="attached")
+        page.click('button:has-text("Continue")')
+    except Exception as e:
+        page = ensurePage(pages, context)
+        loc = page.locator(f'button:has-text("Continue")[data-playwright-visible=true]')
+        loc.wait_for(state="attached")
+        page.click('button:has-text("Continue")[data-playwright-visible=true]')
+    page = ensurePage(pages, context)
+    try:
+        loc = page.locator('button:has-text("Try now")')
+        loc.wait_for(state="attached")
+        page.click('button:has-text("Try now")')
+    except Exception as e:
+        page = ensurePage(pages, context)
+        loc = page.locator(f'button:has-text("Try now")[data-playwright-visible=true]')
+        loc.wait_for(state="attached")
+        page.click('button:has-text("Try now")[data-playwright-visible=true]')
+    page = ensurePage(pages, context)
+    try:
+        loc = page.locator('textarea#composer')
+        loc.wait_for(state="attached")
+        page.fill('textarea#composer', 'Hello')
+    except Exception as e:
+        page= ensurePage(pages, context)
+        loc = page.locator('textarea#composer')
+        loc.wait_for(state="attached")
+        page.fill('textarea#composer', 'Hello')
+    page = ensurePage(pages, context)
+    try:
+        loc = page.locator('textarea#composer')
+        loc.wait_for(state="attached")
+        page.fill('textarea#composer', 'Hello')
+    except Exception as e:
+        page= ensurePage(pages, context)
+        loc = page.locator('textarea#composer')
+        loc.wait_for(state="attached")
+        page.fill('textarea#composer', 'Hello')
+    page = ensurePage(pages, context)
+    try:
+        loc = page.locator('button.h-8.w-8.my-2.ml-1.md\:my-4.flex.flex-shrink-0.items-center.justify-center.rounded.transition.ease-in-out.text-mushroom-800.hover\:bg-mushroom-100')
+        loc.wait_for(state="attached")
+        page.click('button.h-8.w-8.my-2.ml-1.md\:my-4.flex.flex-shrink-0.items-center.justify-center.rounded.transition.ease-in-out.text-mushroom-800.hover\:bg-mushroom-100')
+    except Exception as e:
+        page = ensurePage(pages, context)
+        loc = page.locator(f'button.h-8.w-8.my-2.ml-1.md\:my-4.flex.flex-shrink-0.items-center.justify-center.rounded.transition.ease-in-out.text-mushroom-800.hover\:bg-mushroom-100[data-playwright-visible=true]')
+        loc.wait_for(state="attached")
+        page.click('button.h-8.w-8.my-2.ml-1.md\:my-4.flex.flex-shrink-0.items-center.justify-center.rounded.transition.ease-in-out.text-mushroom-800.hover\:bg-mushroom-100[data-playwright-visible=true]')
     page.wait_for_load_state("load")
     page = ensurePage(pages, context)
     try:
-        contents = page.locator('div[data-testid^="conversation-turn-"]').all_text_contents()
-        for item in contents:
-            if text in item:
-                assert True
+        loc = page.locator('body')
+        loc.wait_for(state="attached")
+        expect(loc).to_have_text(re.compile(r"response"))
     except Exception as e:
         page = ensurePage(pages, context)
-        assert "Hi there!" in page.inner_text('body')
+        assert "response" in page.inner_text('body')
+    assert "response" in page.inner_text('body')
     pages.close()
     browser.close()
     return 'Success!'
