@@ -136,7 +136,8 @@ class PlaywrightPluginOnlyKeyboard(PlaywrightPlugin):
             You can use Playwright to interact with web pages.
             """
         )
-
+    def _enhance_selector(self, selector):
+        return selector
     def _format_context_message(self, html, description):
         return CONTEXT_TEMPLATE.format(description=description)
 
@@ -190,7 +191,6 @@ class PlaywrightPluginOnlyKeyboard(PlaywrightPlugin):
             return f"Failed to press {key}. {e}"
 
         return f"Pressed {key} {count} time(s) successfully."
-
     @tool
     def input_text(self, text: str, delay: int = 0) -> str:
         """
@@ -249,15 +249,15 @@ class PlaywrightPluginOnlyKeyboard(PlaywrightPlugin):
         if not self._pages:
             self._playwright = await playwright.async_api.async_playwright().start()
             self._browser = await self._playwright.firefox.launch(headless=False)
-            browser_context = await self._browser.new_context(ignore_https_errors=True)
-            await browser_context.add_init_script(JS_FUNCTIONS)
-            page = await browser_context.new_page()
+            self._browser_context = await self._browser.new_context(ignore_https_errors=True)
+            await self._browser_context.add_init_script(JS_FUNCTIONS)
+            page = await self._browser_context.new_page()
             self._pages = LinkedPage(page)
         if (self._pages._page.is_closed()):
-            while(self._pages._page.is_closed() and self._pages._page is not None):
-                self._pages.set_prev()
+            while(self._pages._page is not None and self._pages._page.is_closed()):
+                await self._pages.set_prev()
             if(self._pages._page is None):
-                page = await browser_context.new_page()
+                page = await self._browser_context.new_page()
                 self._pages._page = page
         return self._pages._page
 

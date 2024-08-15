@@ -1,7 +1,6 @@
 import asyncio
 import base64
 from inspect import cleandoc
-import json
 from typing import Any
 
 from anthropic import Anthropic
@@ -12,8 +11,8 @@ from playwright.async_api import expect, TimeoutError
 from pydantic import Field
 from langsmith import wrappers, traceable
 from playwright_stealth import stealth_async
-
-
+from dotenv import load_dotenv
+import os
 
 from ai_powered_qa import config
 from ai_powered_qa.components.plugin import Plugin, tool
@@ -128,32 +127,33 @@ def get_openai_client():
 def get_anthropic_client():
     return Anthropic()
 
-class LinkedPage():## Heres the plan: You get the page of any action that opens a popup(get the popup as a page). Then add it here. Only use self._page. If the self._page is ever closed, then set it to prev. Also: need to add the ability to close the current page.
+class LinkedPage():
     def __init__(self, page: playwright.async_api.Page):
         self._page = page
         self._prev = None
-    def add_page(self, page: playwright.async_api.Page):
+    async def add_page(self, page: playwright.async_api.Page):
         if(self._page != None):
             new = LinkedPage(self._page)
             self._page = page
+            if(self._prev is not None):
+                new._prev = self._prev
             self._prev = new
         else:
             self.page = page
             self._prev = None
-    def set_page(self,page: playwright.async_api.Page):
+    async def set_page(self, page: playwright.async_api.Page):
         self._page = page
-    def close(self):
+    async def close(self):
         if(self._page is not None):
-            self._page.close()
+            await self._page.close()
         temp = self._prev
         while(temp is not None):
-            temp._page.close()
+            await temp._page.close()
             temp = temp._prev
-    def set_prev(self):
-        self._page = self._prev
+    async def set_prev(self):
         if(self._prev is not None):
+            self._page = self._prev._page
             self._prev = self._prev._prev
-
 
         
 class PlaywrightPlugin(Plugin):
@@ -165,11 +165,12 @@ class PlaywrightPlugin(Plugin):
     _browser: playwright.async_api.Browser | None
     _pages: LinkedPage | None
     _buffer: bytes | None
-
+    _browser_context: playwright.async_api._generated.BrowserContext
     def __init__(self, **data):
         super().__init__(**data)
         self._playwright = None
         self._browser = None
+        self._browser_context = None
         self._pages = None
         self._buffer = None
         self._loop = asyncio.new_event_loop()
@@ -273,7 +274,8 @@ class PlaywrightPlugin(Plugin):
             selector = self._enhance_selector(selector)
 
             # Count the number of elements that match the selector
-            element_count = await page.locator(selector).count()
+            elements = await page.query_selector_all(selector)
+            element_count = len(elements)
 
             # If no elements found
             if element_count == 0:
@@ -281,7 +283,21 @@ class PlaywrightPlugin(Plugin):
 
             # If more than one element found
             if element_count > 1:
-                raise Exception("Selector returned more than one element.")
+                visible_elements = [el for el in elements if (await el.get_attribute('data-playwright-visible')) == 'true']
+                if(len(visible_elements) > 1):
+                    raise Exception("Selector returned more than one element.")
+                elif(len(visible_elements) <= 0):
+                    raise Exception("Selector returned more than one element.")
+                else:
+                    visible_el = visible_elements[0]
+                    try:
+                        await visible_el.click(timeout=timeout)    
+                    except TimeoutError:
+                        return f"Element did not become clickable within {timeout}ms. It might be obscured by another element." 
+                    except Exception as e:
+                        print(e)
+                        return f"Unable to click on element. Try a different selector or different action!.{e}"
+                    return f"Element has been clicked. Move on!"
             await page.click(
                 selector=selector,
                 timeout=timeout,
@@ -290,9 +306,57 @@ class PlaywrightPlugin(Plugin):
             return f"Element did not become clickable within {timeout}ms. It might be obscured by another element."
         except Exception as e:
             print(e)
-            return f"Unable to click on element. {e}"
+            return f"Unable to click on element. Try a different selector or different action!.{e}"
 
-        return f"Element clicked successfully."
+        return f"Element has been clicked. Move on!"
+    @tool
+    def get_google_credentials(self):
+        """
+        Generates a working google email and password that can be used for sign-in pages. Do not share this with anyone.
+        """
+        return self._run_async(self._get_google_credentials())
+    async def _get_google_credentials(self):
+        load_dotenv()
+        return(os.getenv("EMAIL"), os.getenv("PASSWORD"))
+    # @tool 
+    # def type_google_email(self, selector: str):
+    #     """
+    #     Generate and insert a working google email into an input element. 
+    #     :param str selector: The selector for the element you want to enter the email into.
+    #     """
+    #     return self._run_async(self._enter_email(selector))
+    # async def _enter_email(self, selector: str):
+    #     load_dotenv()
+    #     page = await self._ensure_page()
+    #     page.on("popup", self._handle_popup)
+    #     try:
+    #         await page.locator(selector).fill(
+    #             os.getenv("EMAIL"), timeout=config.PLAYWRIGHT_TIMEOUT
+    #         )
+
+    #     except Exception as e:
+    #         print(e)
+    #         return f"Unable to insert email. Try a better selector. {e}"
+    #     return f"Email was successfully inserted."
+    # @tool
+    # def type_google_password(self, selector: str): 
+    #     """
+    #     Insert a password for the working google email generated prior. 
+    #     :param str selector: The selector for the element you want to enter the password into.
+    #     """
+    #     return self._run_async(self._enter_password(selector))
+    # async def _enter_password(self, selector: str):
+    #     load_dotenv()
+    #     page = await self._ensure_page()
+    #     page.on("popup", self._handle_popup)
+    #     try:
+    #         await page.locator(selector).fill(
+    #             os.getenv("PASSWORD"), timeout = config.PLAYWRIGHT_TIMEOUT
+    #         )
+    #     except Exception as e:
+    #         print(e)
+    #         return f"Unable to insert password. Try a better selector. {e}"
+    #     return f"Password was successfully inserted"
     @tool
     def fill_text(self, selector: str, text: str):
         """
@@ -308,13 +372,13 @@ class PlaywrightPlugin(Plugin):
         page = await self._ensure_page()
         page.on("popup", self._handle_popup)
         try:
-            await page.locator(self._enhance_selector(selector)).fill(
-                text, timeout=config.PLAYWRIGHT_TIMEOUT
+            await page.locator(selector).fill(
+                text, timeout=config.PLAYWRIGHT_TIMEOUT,
             )
         except Exception as e:
             print(e)
-            return f"Unable to fill element. {e}"
-        return f"Text input was successfully performed."
+            return f"Unable to fill element. Selector may be incorrect or not on page. {e}"
+        return f"Text input was performed. Move on!"
 
     # @tool
     # def select_option(self, selector: str, value: str):
@@ -352,7 +416,7 @@ class PlaywrightPlugin(Plugin):
     #     return "Enter key was successfully pressed."
 
     @tool
-    def assert_text(self, text: str, selector: str):
+    def assert_text(self, text: str, selector: str = "html"):
         """
         Assert that a text is on the page or in a specified element.
 
@@ -364,12 +428,14 @@ class PlaywrightPlugin(Plugin):
     async def _assert_text(self, text: str, selector: str = "html"):
         page = await self._ensure_page()
         try:
-            await expect(page.locator(selector)).to_contain_text(text)
+            contents = await page.locator(selector).all_text_contents()
+            for item in contents: 
+                if(text in item):
+                    return f"Successfully validated the assertion."   
+            raise Exception
         except Exception as e:
             print(e)
             return f"Unable to validate the assertion. {e}"
-
-        return f"Successfully validated the assertion."
 
     def close(self):
         self._run_async(self._close())
@@ -377,6 +443,8 @@ class PlaywrightPlugin(Plugin):
     async def _close(self):
         if self._pages:
             await self._pages.close()
+        if self._browser_context:
+            await self._browser_context.close()
         if self._browser:
             await self._browser.close()
         if self._playwright:
@@ -448,7 +516,7 @@ class PlaywrightPlugin(Plugin):
             messages=[
                 {
                     "role": "system",
-                    "content": "Describe the screenshot. Focus specifically on popups, modals and other elements obscuring the main content.",
+                    "content": "Describe the screenshot. Focus specifically on popups, dialogs, modals and other elements obscuring the main content.",
                 },
                 {
                     "role": "user",
@@ -467,18 +535,18 @@ class PlaywrightPlugin(Plugin):
         return completion.choices[0].message.content
 
     async def _ensure_page(self) -> playwright.async_api.Page:
-        if not self._pages:
+        if self._pages is None:
             self._playwright = await playwright.async_api.async_playwright().start()
             self._browser = await self._playwright.firefox.launch(headless=True)
-            browser_context = await self._browser.new_context(ignore_https_errors=True)
-            page = await browser_context.new_page()
+            self._browser_context = await self._browser.new_context(ignore_https_errors=True)
+            page = await self._browser_context.new_page()
             self._pages = LinkedPage(page)
             await stealth_async(self._pages._page)
         if (self._pages._page.is_closed()):
-            while(self._pages._page.is_closed() and self._pages._page is not None):
-                self._pages.set_prev()
+            while(self._pages._page is not None and self._pages._page.is_closed()):
+                await self._pages.set_prev()
             if(self._pages._page is None):
-                page = await browser_context.new_page()
+                page = await self._browser_context.new_page()
                 self._pages._page = page
                 await stealth_async(self._pages._page)
         return self._pages._page
@@ -486,8 +554,15 @@ class PlaywrightPlugin(Plugin):
     async def _screenshot(self):
         page = await self._ensure_page()
         # locator().screenshot() waits for visibility and stability
-        # await page.locator("body").screenshot()
-        self._buffer = await page.screenshot()
+        counter = 50
+        while(counter > 0):
+            counter -=1
+            try:
+                self._buffer = await page.screenshot()
+                return
+            except Exception as e:
+                page = await self._ensure_page()
+                
 
     def _run_async(self, coroutine):
         asyncio.set_event_loop(self._loop)

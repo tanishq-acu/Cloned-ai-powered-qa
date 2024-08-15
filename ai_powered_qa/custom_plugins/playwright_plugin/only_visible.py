@@ -7,12 +7,50 @@ from playwright.async_api import Error
 
 from ai_powered_qa.components.plugin import tool
 from ai_powered_qa.custom_plugins.playwright_plugin.base import LinkedPage
-
 from . import clean_html
 from .base import PageNotLoadedException, PlaywrightPlugin
-
+import time
+EXTRA_FUNCTIONS = cleandoc(
+"""
+function hasShadowDOM(node) {
+  if (node === null){
+    return true;
+  }
+  if (node.shadowRoot) {
+    return true;
+  }
+  
+  for (let child of node.children) {
+    if (hasShadowDOM(child)) {
+      return true;
+    }
+  }
+  return false;
+}
+"""
+)
 JS_FUNCTIONS = cleandoc(
     """
+    function getFullHtml() {
+        function getHtmlFromElement(element) {
+            let html = '';
+
+            if (element.shadowRoot) {
+                html += getHtmlFromElement(element.shadowRoot);
+            }
+            html += element.outerHTML;
+        
+            element.childNodes.forEach(child => {
+                if (child.nodeType === Node.ELEMENT_NODE) {
+                    html += getHtmlFromElement(child);
+                }
+            });
+
+            return html;
+        }
+
+        return getHtmlFromElement(document.documentElement);
+    }
     function updateElementVisibility() {
         const visibilityAttribute = 'data-playwright-visible';
 
@@ -105,7 +143,6 @@ JS_FUNCTIONS = cleandoc(
 
 class PlaywrightPluginOnlyVisible(PlaywrightPlugin):
     name: str = "PlaywrightPluginOnlyVisible"
-
     @property
     def system_message(self) -> str:
         return cleandoc(
@@ -113,15 +150,20 @@ class PlaywrightPluginOnlyVisible(PlaywrightPlugin):
             You are an expert QA engineer. Your goal is to execute text scenarios given to you in natural language by controlling a browser.
             You can see your previous actions, and the user will give you the current state of the browser and the description of the test scenario. Your task is to suggest the next step to take towards completing the test scenario.
             When making assertions in the scenario, make them as robust as possible. Focus on things that should be stable across multiple runs of the test scenarion.
-            You can use multiple assertions.
-            For example in search results make sure the UI for search results is there, and check for specific keywords in the results that should be stable, but avoid asserting long texts are on the page, word for word.
-            Before executing the test case, make sure to close any cookie consent, promotional or sign-up banners and popups that could be obscuring the elements you want to interact with.
-            Always end the scenario with a call to the "finish" tool.
+            You can use multiple assertions, but not multiple actions.
+            Avoid asserting texts are on the page word for word, and instead focus on a single word.
+            Before executing the test case, make sure to accept, continue, or close out on any modals, dialogs, cookie consent, promotional or sign-up banners, or popups.
+            Note that if you need to sign in to run the test scenario, you can only sign in with google with credentials from the appropriate tool. Always ignore captchas.
+            If your login page claims that there are too many login attempts, simply click continue.
+            Always end the scenario with a call to the "finish" tool. 
+            Ensure you get the selectors directly from the html and do not guess them(incorrect selectors are catastrophic). 
+            Ignore captchas and try to work around them.
             """
         )
 
     async def _get_page_content(self):
         page = await self._ensure_page()
+        hasShadowDom = False
         if page.url == "about:blank":
             raise PageNotLoadedException("No page loaded yet.")
         try:
@@ -140,23 +182,46 @@ class PlaywrightPluginOnlyVisible(PlaywrightPlugin):
                 await page.evaluate("window.setValueAsDataAttribute()")
             else:
                 raise e
-        html = await page.content()
-        html_clean = self._clean_html(html)
+        if(page.is_closed()):
+            page = await self._ensure_page()
+        try:
+            shaDOM = await page.evaluate("hasShadowDOM(document.body)")
+        except Exception as e:
+            page = await self._ensure_page()
+            shaDOM = await page.evaluate("hasShadowDOM(document.body)")
+        if (shaDOM):
+            hasShadowDom = True
+            try:
+                await page.wait_for_load_state()
+                html = await page.evaluate("getFullHtml()")
+            except Exception as e:
+                await page.wait_for_load_state()
+                html = await page.content()
+                print("JS failed, using playwright to get page content.")
+        else:
+            print("No shadowDOM, defaulting to playwright for page content.")
+            await page.wait_for_load_state()
+            html = await page.content()
+        # html = await page.content()
+        if hasShadowDom:
+            html_clean = self._clean_html(html)
+        else:
+            html_clean = self._clean_html_old(html)
         return html_clean
-
     async def _ensure_page(self) -> playwright.async_api.Page:
-        if not self._pages:
+        if self._pages is None:
             self._playwright = await playwright.async_api.async_playwright().start()
             self._browser = await self._playwright.firefox.launch(headless=False)
-            browser_context = await self._browser.new_context(ignore_https_errors=True)
-            await browser_context.add_init_script(JS_FUNCTIONS)
-            page = await browser_context.new_page()
+            self._browser_context = await self._browser.new_context(ignore_https_errors=True)
+            await self._browser_context.add_init_script(JS_FUNCTIONS)
+            await self._browser_context.add_init_script(EXTRA_FUNCTIONS)
+            page = await self._browser_context.new_page()
             self._pages = LinkedPage(page)
         if (self._pages._page.is_closed()):
-            while(self._pages._page.is_closed() and self._pages._page is not None):
-                self._pages.set_prev()
+            while(self._pages._page is not None and self._pages._page.is_closed()):
+                await self._pages.set_prev()
             if(self._pages._page is None):
-                page = await browser_context.new_page()
+                page = await self._browser_context.new_page()
                 self._pages._page = page
         return self._pages._page
 
@@ -211,7 +276,13 @@ class PlaywrightPluginOnlyVisible(PlaywrightPlugin):
     #         print(e)
     #         return f"Unable to scroll. {e}"
     #     return f"Scrolled successfully."
-
+    @tool
+    def wait(self):
+        """
+        Wait for some time or pass over to the next iteration. 
+        """
+        time.sleep(3)
+        return "Done waiting."
     @tool
     def finish(self, success: bool, comment: str):
         """
@@ -225,18 +296,19 @@ class PlaywrightPluginOnlyVisible(PlaywrightPlugin):
     async def _finish(self):
         if self._pages:
             await self._pages.close()
+            await self._pages._page.close()
+        if self._browser_context:
+            await self._browser_context.close()
         if self._browser:
             await self._browser.close()
         if self._playwright:
             await self._playwright.stop()
         self._pages = None
         return "Session finished."
-
     @staticmethod
-    def _clean_html(html: str) -> str:
+    def _clean_html_old(html: str) -> str:
         """
-        Cleans the web page HTML content from irrelevant tags and attributes
-        to save tokens.
+        Cleans the web page HTML AND removes invisible tags
         """
         soup = BeautifulSoup(html, "html.parser")
         clean_html.remove_invisible(soup)
@@ -244,10 +316,22 @@ class PlaywrightPluginOnlyVisible(PlaywrightPlugin):
         clean_html.clean_attributes(soup)
         html_clean = soup.prettify()
         html_clean = clean_html.remove_comments(html_clean)
-        return html_clean
+        return clean_html.remove_duplicate_lines(html_clean)
+    @staticmethod
+    def _clean_html(html: str) -> str:
+        """
+        Cleans the web page HTML content from irrelevant tags and attributes
+        to save tokens.
+        """
+        soup = BeautifulSoup(html, "html.parser")
+        clean_html.remove_useless_tags(soup)
+        clean_html.clean_attributes(soup)
+        html_clean = soup.prettify()
+        html_clean = clean_html.remove_comments(html_clean)
+        return clean_html.remove_duplicate_lines(html_clean)
 
     def _enhance_selector(self, selector):
-        return _selector_visible(selector)
+        return selector
 
 
 def _selector_visible(selector: str) -> str:

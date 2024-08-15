@@ -62,7 +62,7 @@ if not st.button("Run test scenario"):
 
 
 interaction = agent.generate_interaction(
-    f"Please go to {website_url} and execute this test scenario:\n{test_scenario}",
+    f"Please go to {website_url} and execute this test scenario:\n{test_scenario}.",
 )
 
 with st.chat_message("User"):
@@ -77,7 +77,7 @@ with st.chat_message("Assistant"):
                 st.write(json.loads(tool_call.function.arguments))
 
 
-max_iterations = 10
+max_iterations = 18
 while (
     max_iterations > 0
     and interaction.agent_response.tool_calls
